@@ -14,5 +14,5 @@ type OrderItem struct {
 	Updated_At    time.Time          `json:"updated_at"`
 	Food_ID       *string            `json:"food_id" validate:"required"`
 	Order_Item_ID string             `json:"order_item_id"`
-	Order_ID      *string            `json:"order_id" validate:"required"`
+	Order_ID      *string            `json:"order_id"`
 }

@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -88,7 +89,7 @@ func CreateFood() gin.HandlerFunc {
 		food.Updated_At, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		food.ID = primitive.NewObjectID()
 		food.Food_ID = food.ID.Hex()
-		var num = util.toFixed()
+		var num = toFixed(*food.Price, 2)
 		food.Price = &num
 
 		result, insertEr := foodCollection.InsertOne(ctx, &food)
@@ -192,4 +193,13 @@ func DeleteFood() gin.HandlerFunc {
 		result := foodCollection.FindOneAndDelete(ctx, bson.M{"food_id": foodId}).Decode(&food)
 		c.JSON(http.StatusAccepted, result)
 	}
+}
+
+func rounded(num float64) int {
+	return int(num + math.Copysign(0.5, num))
+}
+
+func toFixed(num float64, precision int) float64 {
+	ouptut := math.Pow(10, float64(precision))
+	return float64(rounded(num * ouptut))
 }
