@@ -7,21 +7,26 @@ import (
 	"os"
 	"time"
 
+	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func DBInstance() *mongo.Client {
-	MONGO_PASSWORD := os.Getenv("MONGO_PASSWORD")
-	MongoDB := fmt.Sprintf(`mongodb+srv://Everybody:%s@cluster0.wijun.mongodb.net/?retryWrites=true&w=majority`, MONGO_PASSWORD)
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("err loading: %v", err)
+	}
 
-	fmt.Print(MongoDB)
+	MONGO_PASSWORD := os.Getenv("MONGO_PASSWORD")
+	MongoDB := fmt.Sprintf(`mongodb+srv://Everybody:%v@cluster0.wijun.mongodb.net/?retryWrites=true&w=majority`, MONGO_PASSWORD)
+	fmt.Println(MongoDB)
 	client, err := mongo.NewClient(options.Client().ApplyURI(MongoDB))
 	if err != nil {
 		log.Fatal(err)
 		panic(err.Error())
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 
 	defer cancel()
 
@@ -31,7 +36,7 @@ func DBInstance() *mongo.Client {
 		panic(err.Error())
 	}
 
-	fmt.Println("Connected to MongoDB")
+	fmt.Println(client)
 
 	return client
 }

@@ -32,13 +32,13 @@ func GetInvoices() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var allInvoices []bson.M
 		ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Second)
+		defer cancel()
 
 		result, err := invoiceCollection.Find(context.TODO(), bson.M{})
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching invoices!"})
 			return
 		}
-		defer cancel()
 
 		if err = result.All(ctx, &allInvoices); err != nil {
 			log.Fatal(err.Error())
@@ -52,26 +52,24 @@ func CreateInvoice() gin.HandlerFunc {
 		var invoice models.Invoice
 		var order models.Order
 		ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Second)
+		defer cancel()
 
 		if err := c.BindJSON(&invoice); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		defer cancel()
 
 		validationErr := validate.Struct(invoice)
 		if validationErr != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
 			return
 		}
-		defer cancel()
 
 		err := orderCollection.FindOne(ctx, bson.M{"table_id": invoice.Order_ID}).Decode(&order)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Order was not found"})
 			return
 		}
-		defer cancel()
 
 		method := "CASH"
 		if invoice.Payment_Method == nil {
@@ -94,7 +92,6 @@ func CreateInvoice() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invoice was not created!"})
 			return
 		}
-		defer cancel()
 
 		c.JSON(http.StatusAccepted, result)
 	}
@@ -102,16 +99,16 @@ func CreateInvoice() gin.HandlerFunc {
 
 func GetInvoice() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Second)
-		invoiceId := c.Param("invoice_id")
 		var invoice models.Invoice
+		ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Second)
+		defer cancel()
+		invoiceId := c.Param("invoice_id")
 
 		err := invoiceCollection.FindOne(ctx, bson.M{"invoice_id": invoiceId}).Decode(&invoice)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "Cannot find that invoice item"})
 			return
 		}
-		defer cancel()
 
 		var invoiceView InvoiceViewFormat
 		allOrdersItem, _ := ItemsByOrder(invoice.Order_ID)
@@ -124,7 +121,7 @@ func GetInvoice() gin.HandlerFunc {
 		}
 
 		invoiceView.Invoice_ID = invoice.Invoice_ID
-		invoiceView.Payment_Status = *&invoice.Payment_Status
+		invoiceView.Payment_Status = invoice.Payment_Status
 		invoiceView.Payment_Due = allOrdersItem[0]["payment_due"]
 		invoiceView.Table_Number = allOrdersItem[0]["table_number"]
 		invoiceView.Order_Details = allOrdersItem[0]["invoice_items"]
@@ -138,44 +135,44 @@ func UpdateInvoice() gin.HandlerFunc {
 		var invoice models.Invoice
 		var updateObj primitive.D
 		ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Second)
+		defer cancel()
 
 		if err := c.BindJSON(&invoice); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		defer cancel()
 
 		invoiceId := c.Param("invoice_id")
 		filter := bson.M{"invoice_id": invoiceId}
 
 		method := "CASH"
 		if invoice.Payment_Method != nil {
-			updateObj = append(updateObj, bson.E{"payment_method", invoice.Payment_Method})
+			updateObj = append(updateObj, bson.E{Key: "payment_method", Value: invoice.Payment_Method})
 		} else {
 			invoice.Payment_Method = &method
 		}
 
 		status := "PENDING"
 		if invoice.Payment_Status != nil {
-			updateObj = append(updateObj, bson.E{"payment_status", invoice.Payment_Status})
+			updateObj = append(updateObj, bson.E{Key: "payment_status", Value: invoice.Payment_Status})
 		} else {
 			invoice.Payment_Status = &status
 		}
 
 		updated_at, _ := time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		updateObj = append(updateObj, bson.E{"updated_at", updated_at})
+		updateObj = append(updateObj, bson.E{Key: "updated_at", Value: updated_at})
 
 		upsert := true
 		opt := options.UpdateOptions{
 			Upsert: &upsert,
 		}
 
-		result, err := invoiceCollection.UpdateOne(ctx, filter, bson.D{{"set", updateObj}}, &opt)
+		result, err := invoiceCollection.UpdateOne(ctx, filter, bson.D{{Key: "set", Value: updateObj}}, &opt)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not update invoice!"})
 			return
 		}
-		defer cancel()
+
 		c.JSON(http.StatusAccepted, result)
 
 	}
@@ -183,16 +180,16 @@ func UpdateInvoice() gin.HandlerFunc {
 
 func DeleteInvoice() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Second)
-		invoiceId := c.Param("invoice_id")
 		var invoice models.Invoice
+		ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Second)
+		defer cancel()
+		invoiceId := c.Param("invoice_id")
 
 		err := invoiceCollection.FindOne(ctx, bson.M{"invoice_id": invoiceId}).Decode(&invoice)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "Cannot find invoice with that id"})
 			return
 		}
-		defer cancel()
 
 		result := invoiceCollection.FindOneAndDelete(ctx, bson.M{"invoice_id": invoiceId}).Decode(&invoice)
 		c.JSON(http.StatusAccepted, result)
